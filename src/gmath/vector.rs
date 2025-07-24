@@ -1,6 +1,4 @@
-use num_traits::{Zero};
-pub trait VectorDataTrait<T> {
-}
+use num_traits::Zero;
 
 pub struct Vector<T>{
     pub data: Vec<T>,

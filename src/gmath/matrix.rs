@@ -1,16 +1,12 @@
+use num_traits::{Zero, One};
+
 #[derive(Debug, Clone)]
 pub struct Matrix<T> {
     pub data: Vec<Vec<T>>,
     pub shape: Option<(usize, usize)>,
-    pub rank: Option<usize>,
-    pub determinant: Option<T>,
-    pub plu_decomposition: Option<(Vec<Vec<T>>, Vec<T>, Vec<Vec<T>>)>,
-    pub inverse: Option<Vec<Vec<T>>>,
-    pub transpose: Option<Vec<Vec<T>>>,
-    pub trace: Option<T>,
 }
 
-impl <T: Clone> Matrix<T> {
+impl <T: Clone + Zero + One + Copy + std::cmp::PartialEq> Matrix<T> {
     pub fn new(data: Vec<Vec<T>>) -> Self {
         let shape = if data.is_empty() {
             None
@@ -20,12 +16,6 @@ impl <T: Clone> Matrix<T> {
         Matrix {
             data,
             shape,
-            rank: None,
-            determinant: None,
-            plu_decomposition: None,
-            inverse: None,
-            transpose: None,
-            trace: None,
         }
     }
 
@@ -75,21 +65,19 @@ impl <T: Clone> Matrix<T> {
     }
 
     pub fn transpose(&mut self) -> Matrix<T> {
-        match self.transpose {
-            Some(_) => Matrix::new(self.transpose.clone().unwrap()),
-            None => {
-                let mut transposed: Vec<Vec<T>> = vec![vec![]; self.size().1];
-                for row in &self.data {
-                    for (i, value) in row.iter().enumerate() {
-                        transposed[i].push(value.clone());
-                    }
-                }
-                self.transpose = Some(transposed.clone());
-                Matrix::new(transposed)
-            },
-        }        
+        
+        let mut transposed: Vec<Vec<T>> = vec![vec![]; self.size().1];
+        for row in &self.data {
+            for (i, value) in row.iter().enumerate() {
+                transposed[i].push(value.clone());
+            }
+        }
+        Matrix::new(transposed)      
     }
 
+    pub fn p_l_u_factorization(&self) -> (Vec<Vec<T>>,Vec<Vec<T>>) {
+        unimplemented!()
+    }
     pub fn determinant(&self) -> T
     where
         T: std::ops::Mul<Output = T> + std::ops::Add<Output = T> + Copy + num_traits::Zero,
