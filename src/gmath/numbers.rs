@@ -1,3 +1,7 @@
+pub fn is_pow2( value: u32) -> bool {
+    (value & (value -1)) == 0
+}
+
 pub fn get_primes_number( limit: u32) -> Vec<u32> {
     let mut primes = Vec::new();
     let mut counter = 3;

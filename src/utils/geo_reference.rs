@@ -1,4 +1,4 @@
-use num_traits::{Float, Zero, One};
+use num_traits::{Float, Zero};
 
 const SEMI_AXIS_MAJOR: f64 = 6378137.0;
 const SEMI_AXIS_MINOR: f64 = 6356752.314245179;
