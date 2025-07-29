@@ -62,3 +62,21 @@ pub fn gcd(a: u32, b: u32) -> u32 {
 pub fn lcm(a: u32, b: u32) -> u32 {
     (a * b) / gcd(a, b)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn test_is_pow2() {
+        assert!(is_pow2(1));
+        assert!(is_pow2(2));
+        assert!(is_pow2(4));
+        assert!(!is_pow2(3));
+        assert!(!is_pow2(5));
+    }
+    #[test]
+    fn test_get_primes_number() {
+        let primes = get_primes_number(30);
+        assert_eq!(primes, vec![2, 3, 5, 7, 11, 13, 17, 19, 23, 29]);
+    }
+}
