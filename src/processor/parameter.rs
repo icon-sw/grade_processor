@@ -1,73 +1,74 @@
-use std::sync::{Arc, Mutex};
-use std::cmp::Ord;
+use std::any::Any;
+use std::sync::Mutex;
 use std::collections::HashMap;
-
-pub trait ParameterTrait {
-    fn name(&self) -> &str;
-    fn get_value(&self, block_id: u64) -> Box<dyn std::any::Any>;
-    fn set_value(&mut self, value: Box<dyn std::any::Any>, block_id: u64) -> Result<(), &str>;
-}
+use once_cell::sync::Lazy;
 #[derive(Clone)]
-pub struct Parameter<T> {
-    name: String,
-    description: String,
-    values: Arc<Mutex<HashMap<u64,T>>>,
-    default_value: T,
-    min_value: Option<T>,
-    max_value: Option<T>,
-    allowed_values: Vec<T>,
+pub enum ParameterType {
+    NUMBER,
+    ENUMERATION,
+    BOOLEAN,
+    STRING,
 }
 
-impl<T> Parameter<T> {
-    fn new(
-        name: String,
-        description: String,
-        default_value: T,
-        min_value: Option<T>,
-        max_value: Option<T>,
-        allowed_values: Vec<T>,
-    ) -> Self {
+pub trait ParameterModel {
+    fn get_name(&self) -> String;
+    fn get_description(&self) -> String;
+    fn get_param_type(&self) -> ParameterType;
+    fn validate_value(&self, value: &Box<dyn Any>) -> bool;
+
+}
+
+pub struct Parameter<T> {
+    pub name: String,
+    pub id: u64,
+    pub value: T,
+}
+
+impl<T: Copy> Parameter<T> {
+    pub fn new(name: String, id: u64, value: T) -> Self {
         Parameter {
             name,
-            description,
-            values: Arc::new(Mutex::new(HashMap::new())),
-            default_value,
-            min_value,
-            max_value,
-            allowed_values,
+            id,
+            value,
         }
+    }
+    pub fn set_value(&mut self, value: T) {
+        self.value = value;
+    }
+    pub fn get_value(&self) -> T {
+        self.value
+    }
+}
+
+pub struct ParameterControl {
+    parameter_model_table: HashMap<String, Box<dyn ParameterModel>>,
+    parameter_list: HashMap<u64, Box<dyn Any>>,
+}
+
+impl ParameterControl {
+    pub fn add_parameter_model(&mut self, parameter_model: Box<dyn ParameterModel>) {
+        self.parameter_model_table.insert(parameter_model.get_name(), parameter_model);
     }
 
-}
-impl<T: 'static + Ord + Clone> ParameterTrait for Parameter<T> {
-    fn name(&self) -> &str {
-        &self.name
-    }
-    fn get_value(&self, block_id: u64) -> Box<dyn std::any::Any> {
-        match self.values.lock().unwrap().get(&block_id) {
-            Some(value) => Box::new(value.clone()),
-            None => Box::new(self.default_value.clone()),
+    pub fn add_parameter(&mut self, model: String, block_id: u64, value: Box<dyn Any>) -> bool {
+        let valid: bool;
+        match self.parameter_model_table.get(&model) {
+            Some(model) => valid = model.validate_value(&value),
+            None => panic!("Parameter {} not found", model),
         }
-    }
-    fn set_value(&mut self, value: Box<dyn std::any::Any>, block_id: u64) -> Result<(), &str> {
-        if let Ok(v) = value.downcast::<T>() {
-            if let Some(min) = &self.min_value {
-                if *v < *min {
-                    return Err("Value is below minimum limit");
-                }
-            }
-            if let Some(max) = &self.max_value {
-                if *v > *max {
-                    return Err("Value is above maximum limit");
-                }
-            }
-            if !self.allowed_values.contains(&v) {
-                return Err("Value is not in the list of allowed values");
-            }
-            self.values.lock().unwrap().insert(block_id, *v);
+        if valid {
+            self.parameter_list.insert(block_id, value);
+            true
         } else {
-            return Err("Mismatched data type")
+            false
         }
-        Ok(())
+
     }
 }
+
+pub static mut PARAMETER_CONTROL: Lazy<ParameterControl> = Lazy::new(|| {
+    ParameterControl{
+        parameter_model_table: HashMap::new(),
+        parameter_list: HashMap::new(),
+    }
+});

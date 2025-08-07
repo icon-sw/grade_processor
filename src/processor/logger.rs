@@ -1,98 +1,96 @@
 use std::any::Any;
-use std::collections::VecDeque;
-use crate::processor::parameter::{Parameter, ParameterTrait};
-use crate::processor::process::{ProcessTrait};
+use crate::processor::parameter::{ParameterType, ParameterModel, Parameter, PARAMETER_CONTROL};
 
-#[derive(Clone)]
-pub struct LogStruct {
-    pub level: u64,
-    pub message: String,
+#[derive(Copy, Clone, PartialEq)]
+pub enum LogLevel {
+    Emergency,
+    Alert,
+    Critical,
+    Error,
+    Warning,
+    Notice,
+    Info,
+    Debug,
 }
 
-#[derive(Clone)]
-pub struct Logger {
+pub struct  LogLevelParameter {
     name: String,
     description: String,
-    level: Parameter<u64>,
-    path: String,
-    file_prefix: String,
-    log_format: String,
-    entries: VecDeque<LogStruct>,
+    parameter_type: ParameterType,
+    default_level: LogLevel,
+    allowed_levels: Vec<LogLevel>,
+    min_value: LogLevel,
+    max_value: LogLevel
 }
+impl LogLevelParameter {
+    pub fn new() -> LogLevelParameter {
+        LogLevelParameter {
+            name: "LogLevel".to_string(),
+            description: "Set the level of log to apply".to_string(),
+            parameter_type: ParameterType::ENUMERATION,
+            default_level: LogLevel::Error,
+            allowed_levels: {
+                let mut all = Vec::new();
+                all.push(LogLevel::Emergency);
+                all.push(LogLevel::Alert);
+                all.push(LogLevel::Critical);
+                all.push(LogLevel::Error);
+                all.push(LogLevel::Warning);
+                all.push(LogLevel::Notice);
+                all.push(LogLevel::Info);
+                all.push(LogLevel::Debug);
 
-impl Logger {
-    pub fn new(level: Parameter<u64>, 
-        path: String, 
-        file_prefix: Option<String>,
-        log_format: Option<String>
-    ) -> Self {
-        Logger {
-            name: String::from("Default Logger"),
-            description: String::from("This is a default logger"),
-            level,
-            path: path.clone(),
-            file_prefix: {
-                if let Some(prefix) = &file_prefix {
-                    format!("{}/{}.log", path, prefix)
-                } else {
-                    format!("{}/log_file", path)
-                }
+                all
             },
-            log_format: {
-                if let Some(format) = &log_format {
-                    format!("{}-{}", path, format)
-                } else {
-                    format!("{}/log", path)
-                }
-            },
-            entries: VecDeque::new(),
+            min_value: LogLevel::Debug,
+            max_value: LogLevel::Emergency,
         }
+
     }
-
-    pub fn log(&mut self, log_entry: LogStruct) {
-        let binding = self.level.get_value(0);
-        let level = binding.downcast_ref::<u64>().unwrap();
-        if log_entry.level < *level {
-            return; // Skip logging if the log level is below the configured level
-        }
-        // Here you would implement the actual logging logic, e.g., writing to a file or
-        println!("[Log Level {}]: {}", level, log_entry.message);
-        self.entries.push_back(log_entry);
+    pub fn get_min_value(&self) -> LogLevel {
+        self.min_value
+    }
+    pub fn get_max_value(&self) -> LogLevel {
+        self.max_value
+    }
+    pub fn get_allowed_values(&self) -> &Vec<LogLevel> {
+        &self.allowed_levels
     }
 }
-
-impl ProcessTrait for Logger {
-    fn process(&mut self, data: Vec<Box<dyn Any>>) -> Vec<Box<dyn Any>> {
-        data.into_iter().for_each(|item| {
-            if let Some(log_entry) = item.downcast_ref::<LogStruct>() {
-                self.log(log_entry.clone());
-            }
-        });
-        Vec::new()
-    }
+impl ParameterModel for LogLevelParameter {
     fn get_name(&self) -> String {
         self.name.clone()
     }
     fn get_description(&self) -> String {
         self.description.clone()
     }
-    fn get_parameters(&self) -> Vec<Box<dyn ParameterTrait>> {
-        let value: Box<dyn ParameterTrait> = Box::new(self.level.clone());
-        vec![value]
+    fn get_param_type(&self) -> ParameterType {
+        self.parameter_type.clone()
     }
-    fn get_parameter(&self, name: &str) -> Option<Box<dyn ParameterTrait>> {
-        if name == self.level.name() {
-            let value: Box<dyn ParameterTrait> = Box::new(self.level.clone());
-            Some(value)
-        } else  {
-            None
+    fn validate_value(&self, value: &Box<dyn Any>) -> bool {
+        let value = value.downcast_ref::<LogLevel>().unwrap();
+
+        if self.get_allowed_values().contains(value) {
+            true
+        } else {
+            false
         }
     }
-    fn set_parameter(&mut self, name: &str, value: Box<dyn std::any::Any>, block_id: u64) -> Result<(), &str> {
-        if name == self.level.name() {
-            self.level.set_value(value, block_id)
-        } else  {
-            Err("Parameter not found")
+}
+pub struct Logger {
+    log_level: Parameter<LogLevel>
+}
+
+impl Logger {
+    pub fn new(block_id: u64, log_level: LogLevel) -> Self {
+        let value: Box<dyn Any> = Box::new(log_level);
+        unsafe {
+            if !PARAMETER_CONTROL.add_parameter("LogLevel".to_string(), block_id, value) {
+                panic!("Not allowed value")
+            }
+        }
+        Logger{
+            log_level: Parameter::new("LogLevel".to_string(),block_id,log_level)
         }
     }
 }
