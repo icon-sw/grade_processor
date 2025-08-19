@@ -1,5 +1,7 @@
 use std::any::Any;
-use crate::processor::parameter::{ParameterType, ParameterModel, Parameter, PARAMETER_CONTROL};
+use std::sync::OnceLock;
+use crate::processor::parameter::{ParameterType, ParameterModel, Parameter,
+                                  add_parameter_model, add_parameter};
 
 #[derive(Copy, Clone, PartialEq)]
 pub enum LogLevel {
@@ -13,6 +15,7 @@ pub enum LogLevel {
     Debug,
 }
 
+#[derive(Clone)]
 pub struct  LogLevelParameter {
     name: String,
     description: String,
@@ -24,7 +27,7 @@ pub struct  LogLevelParameter {
 }
 impl LogLevelParameter {
     pub fn new() -> LogLevelParameter {
-        LogLevelParameter {
+        let log_level_param = LogLevelParameter {
             name: "LogLevel".to_string(),
             description: "Set the level of log to apply".to_string(),
             parameter_type: ParameterType::ENUMERATION,
@@ -44,8 +47,10 @@ impl LogLevelParameter {
             },
             min_value: LogLevel::Debug,
             max_value: LogLevel::Emergency,
-        }
-
+        };
+        let box_param: Box<dyn ParameterModel+Send+'static> = Box::new(log_level_param.clone());
+        add_parameter_model(box_param);
+        log_level_param
     }
     pub fn get_min_value(&self) -> LogLevel {
         self.min_value
@@ -67,7 +72,7 @@ impl ParameterModel for LogLevelParameter {
     fn get_param_type(&self) -> ParameterType {
         self.parameter_type.clone()
     }
-    fn validate_value(&self, value: &Box<dyn Any>) -> bool {
+    fn validate_value(&self, value: &Box<dyn Any + Send>) -> bool {
         let value = value.downcast_ref::<LogLevel>().unwrap();
 
         if self.get_allowed_values().contains(value) {
@@ -78,17 +83,17 @@ impl ParameterModel for LogLevelParameter {
     }
 }
 pub struct Logger {
-    log_level: Parameter<LogLevel>
+    log_level: Parameter<LogLevel>,
 }
 
 impl Logger {
     pub fn new(block_id: u64, log_level: LogLevel) -> Self {
-        let value: Box<dyn Any> = Box::new(log_level);
-        unsafe {
-            if !PARAMETER_CONTROL.add_parameter("LogLevel".to_string(), block_id, value) {
+        static LOG_LEVEL_PARAM: OnceLock<LogLevelParameter> = OnceLock::new();
+        LOG_LEVEL_PARAM.get_or_init(|| LogLevelParameter::new());
+        let value: Box<dyn Any + Send> = Box::new(log_level);
+            if !add_parameter("LogLevel".to_string(), block_id, value) {
                 panic!("Not allowed value")
             }
-        }
         Logger{
             log_level: Parameter::new("LogLevel".to_string(),block_id,log_level)
         }
